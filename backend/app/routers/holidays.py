@@ -3,10 +3,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import extract, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from ..database import get_db
-from ..models import Holiday, HolidayState, HolidayStateLink
+from ..models import Country, Holiday, HolidayState, HolidayStateLink
 from ..schemas import HolidayOut, HolidayPage
 from ..security import get_current_user
 
@@ -18,6 +18,16 @@ router = APIRouter(
 )
 
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+def _holiday_ids_where(*conditions):
+    """IDs of holidays linked to at least one state that matches `conditions`."""
+    return (
+        select(HolidayStateLink.holiday_id)
+        .join(HolidayState, HolidayState.id == HolidayStateLink.state_id)
+        .join(Country, Country.id == HolidayState.country_id)
+        .where(*conditions)
+    )
 
 
 @router.get("", response_model=HolidayPage)
@@ -45,16 +55,24 @@ def list_holidays(
     if date_to:
         filters.append(Holiday.date <= date_to)
     if country:
-        # needed to tell apart equal abbreviations, e.g. US "WA" vs Australia "WA"
-        filters.append(Holiday.country_code == country.upper())
+        # a holiday's country comes through its states; also tells apart US "WA" from AU "WA"
+        filters.append(Holiday.id.in_(_holiday_ids_where(Country.code == country.upper())))
     if state:
-        # applies to a state if nationwide OR the state is linked to the holiday
+        # applies to a state if linked to it, OR nationwide in a country that has that state
+        abbrev = state.upper()
+        has_state = aliased(HolidayState)   # alias: keeps this inner query separate from the outer one
+        countries_with_state = select(has_state.country_id).where(
+            has_state.abbrev == abbrev, has_state.is_nationwide.is_(False)
+        )
         filters.append(
             or_(
-                Holiday.nationwide.is_(True),
-                Holiday.state_links.any(
-                    HolidayStateLink.state.has(HolidayState.abbrev == state.upper())
-                ),
+                Holiday.id.in_(_holiday_ids_where(
+                    HolidayState.abbrev == abbrev, HolidayState.is_nationwide.is_(False)
+                )),
+                Holiday.id.in_(_holiday_ids_where(
+                    HolidayState.is_nationwide.is_(True),
+                    HolidayState.country_id.in_(countries_with_state),
+                )),
             )
         )
 

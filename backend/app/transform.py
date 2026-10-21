@@ -1,6 +1,8 @@
 import datetime as dt
 from typing import Any
 
+NATIONWIDE_ABBREV = "ALL"  # reserved: the per-country "whole country" row (see models.py)
+
 
 def _parse_state(raw_state: dict[str, Any]) -> dict[str, Any] | None:
     """One raw state/province entry -> {"abbrev", "name", "iso", "note"}, or None if unusable.
@@ -13,7 +15,7 @@ def _parse_state(raw_state: dict[str, Any]) -> dict[str, Any] | None:
     abbrev = (raw_state.get("abbrev") or "").strip()
     if not abbrev and iso:
         abbrev = iso.rsplit("-", 1)[-1].strip().upper()
-    if not abbrev:
+    if not abbrev or abbrev.upper() == NATIONWIDE_ABBREV:
         return None
     return {
         "abbrev": abbrev,
@@ -30,8 +32,9 @@ def parse_record(raw: dict[str, Any]) -> dict[str, Any]:
     means "observed everywhere". A list can still be long ("All except MA, MS..."
     arrives as 45 listed states).
 
-    Each state is returned once (duplicates inside one record are dropped); the
-    country comes from the record itself, so records from any country work.
+    The country comes from the record itself ({"country": {"id": "us", "name": "United States"}});
+    it is None when the record has no country information (the loader then needs --country).
+    Each state is returned once (duplicates inside one record are dropped).
     """
     raw_states = raw.get("states")
     nationwide = raw_states == "All"
@@ -45,10 +48,14 @@ def parse_record(raw: dict[str, Any]) -> dict[str, Any]:
                 seen.add(parsed["abbrev"])
                 states.append(parsed)
 
+    country = raw.get("country") or {}
+    country_code = (country.get("id") or "").strip().upper() or None
+
     return {
         "name": raw["name"],
         "description": raw.get("description"),
-        "country_code": raw["country"]["id"].upper(),
+        "country_code": country_code,
+        "country_name": country.get("name"),
         "date": dt.date.fromisoformat(raw["date"]["iso"][:10]),
         "primary_type": raw["primary_type"],
         "types": list(raw.get("type", [])),
