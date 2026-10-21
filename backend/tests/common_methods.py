@@ -1,4 +1,4 @@
-from models import Holiday , HolidayState
+import datetime as dt
 
 REGISTER_URL = "/user/register"
 LOGIN_URL = "/user/login"
@@ -21,6 +21,41 @@ def login(client, email=USER["email"], password=USER["password"]):
     return client.post(LOGIN_URL, data={"username": email, "password": password})
 
 
-def holidays_sample_data():
-    """Sample data for the holidays table."""
-    state1 = HolidayState("")
+def _record(name, country, date, states, nationwide=False, country_name=None):
+    """A holiday in the shape app.transform.parse_record returns (what load_country takes)."""
+    return {
+        "name": name, "description": None,
+        "country_code": country, "country_name": country_name,
+        "date": dt.date.fromisoformat(date), "primary_type": "State Holiday",
+        "types": ["Local holiday"], "nationwide": nationwide, "locations": None,
+        "url": None, "urlid": None,
+        "states": [{"abbrev": a, "name": None, "iso": None, "note": None} for a in states],
+    }
+
+
+def us_records():
+    """US file: NV is in TWO holidays; one holiday is nationwide."""
+    c = dict(country="US", country_name="United States")
+    return [
+        _record("Juneteenth Day", date="2026-06-19", states=["NV", "TX"], **c),
+        _record("Nevada Day", date="2026-10-30", states=["NV"], **c),
+        _record("Independence Day", date="2026-07-04", states=[], nationwide=True, **c),
+        _record("Washington Day", date="2026-02-16", states=["WA"], **c),
+    ]
+
+
+def au_records():
+    """AU file: its "WA" (Western Australia) must not clash with the US "WA"."""
+    c = dict(country="AU", country_name="Australia")
+    return [
+        _record("Western Australia Day", date="2026-06-01", states=["WA"], **c),
+        _record("Australia Day", date="2026-01-26", states=[], nationwide=True, **c),
+    ]
+
+
+def load_sample_data(db):
+    """Load both sample countries the way the ingest script does: one country per call."""
+    from app.ingest import load_country
+
+    load_country(db, us_records())
+    load_country(db, au_records())

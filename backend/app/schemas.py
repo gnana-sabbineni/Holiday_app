@@ -11,7 +11,7 @@ class HolidayOut(BaseModel):
     name: str
     description: str | None
     date: dt.date
-    country_code: str
+    country_code: str | None   # comes from the Holiday.country_code property (via states)
     primary_type: str
     types: list[str]
     nationwide: bool
