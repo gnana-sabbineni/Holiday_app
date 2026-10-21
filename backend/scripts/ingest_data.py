@@ -1,7 +1,7 @@
 """Load holiday JSON files into the database: one file per country, any country.
 
 Run from the backend/ folder:
-    python -m scripts.ingest_data ../data/holidays_2026.json                 # one file
+    python -m scripts.ingest_data ../data/holidays_US_2026.json                 # one file
     python -m scripts.ingest_data ../data/us.json ../data/in.json            # several files
     python -m scripts.ingest_data ../data/us.json --country US               # static country code
     python -m scripts.ingest_data ../data/*.json --dry-run                   # check only, saves nothing
@@ -10,7 +10,7 @@ The country is read from the records themselves ({"country": {"id": "us", "name"
 --country is only needed when a file carries no country, and it must match the file if it does.
 Each file is its own all-or-nothing transaction: a bad file changes nothing and the others still load.
 Re-running is safe: a country's holidays are replaced per year, countries and states are stored once.
-With no file given it loads ../data/holidays_2026.json (the old default).
+With no file given it loads ../data/holidays_US_2026.json (the old default).
 """
 import argparse
 import json
@@ -39,7 +39,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="validate everything, save nothing")
     args = parser.parse_args()
 
-    paths = args.files or [Path("../data/holidays_2026.json")]
+    paths = args.files or [Path("../data/holidays_US_2026.json")]
     if args.country and len(paths) != 1:
         parser.error("--country can only be used with exactly one file")
 
