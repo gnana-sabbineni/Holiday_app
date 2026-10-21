@@ -6,7 +6,7 @@ from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Holiday, HolidayState
+from ..models import Holiday, HolidayState, HolidayStateLink
 from ..schemas import HolidayOut, HolidayPage
 from ..security import get_current_user
 
@@ -25,7 +25,8 @@ def list_holidays(
     db: DbSession,
     month: Annotated[int | None, Query(ge=1, le=12)] = None,
     primary_type: Annotated[str | None, Query(alias="type", max_length=80)] = None,
-    state: Annotated[str | None, Query(pattern="^[A-Za-z]{2}$")] = None,
+    state: Annotated[str | None, Query(pattern="^[A-Za-z0-9]{1,10}$")] = None,
+    country: Annotated[str | None, Query(pattern="^[A-Za-z]{2}$")] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     date_from: dt.date | None = None,
     date_to: dt.date | None = None,
@@ -43,12 +44,17 @@ def list_holidays(
         filters.append(Holiday.date >= date_from)
     if date_to:
         filters.append(Holiday.date <= date_to)
+    if country:
+        # needed to tell apart equal abbreviations, e.g. US "WA" vs Australia "WA"
+        filters.append(Holiday.country_code == country.upper())
     if state:
-        # applies to a state if nationwide OR the state is listed
+        # applies to a state if nationwide OR the state is linked to the holiday
         filters.append(
             or_(
                 Holiday.nationwide.is_(True),
-                Holiday.state_rows.any(HolidayState.abbrev == state.upper()),
+                Holiday.state_links.any(
+                    HolidayStateLink.state.has(HolidayState.abbrev == state.upper())
+                ),
             )
         )
 
