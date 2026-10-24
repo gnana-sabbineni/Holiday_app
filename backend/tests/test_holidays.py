@@ -1,5 +1,5 @@
 import datetime as dt
-
+from .common_methods import load_sample_data
 import pytest
 
 HOLIDAYS_URL = "/holidays"
@@ -26,14 +26,7 @@ def test_holidays_empty_db_returns_empty_page(client, auth_headers):
     response = client.get(HOLIDAYS_URL , headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["total"] == 0
-
-
-
-
-
-# ---- filters and output once holidays map to states and states to countries ----
-
-from .common_methods import load_sample_data
+    assert response.json()["items"] == []
 
 
 def _names(client, auth_headers, **params):
